@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import pandas as pd
 
 class DatabaseManager:
     def __init__(self, db_path="data/market_data.db"):
@@ -61,3 +62,14 @@ class DatabaseManager:
         rows = cursor.fetchall()
         conn.close()
         return rows
+
+    def get_daily_price_as_df(self, symbol, start_date=None, end_date=None):
+        """Fetch daily price and return as Pandas DataFrame."""
+        rows = self.get_daily_price(symbol, start_date, end_date)
+        if not rows:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(rows, columns=['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'])
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+        df.set_index('date', inplace=True)
+        return df

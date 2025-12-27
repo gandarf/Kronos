@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Run Backtest</div>
+            <div class="card-body">
+                <form action="/web/backtest/run" method="post" class="row g-3 align-items-center">
+                    <div class="col-auto">
+                        <label for="symbol" class="col-form-label">Symbol</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="text" id="symbol" name="symbol" class="form-control" value="005930">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">Run Simulation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if summary %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h4>Results for {{ symbol }}</h4>
+            <p><strong>Total Return:</strong> {{ summary.total_return_pct | round(2) }}%</p>
+            <p><strong>Final Equity:</strong> {{ "{:,.0f}".format(summary.final_equity) }} KRW</p>
+            <p><strong>MDD:</strong> {{ summary.mdd_pct | round(2) }}%</p>
+            <p><strong>Trades:</strong> {{ summary.total_trades }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

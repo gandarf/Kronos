@@ -110,10 +110,10 @@ class KisApi:
     def get_daily_price(self, symbol, start_date, end_date, period_code="D"):
         """
         주식 기간별 시세 (일/주/월/년) - 일봉 데이터 수집용
-        TR_ID: FHKST01010400
+        TR_ID: FHKST03010100
         """
         url = f"{self.url_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
-        headers = self._get_headers(tr_id="FHKST01010400")
+        headers = self._get_headers(tr_id="FHKST03010100")
         
         # 'D': Day, 'W': Week, 'M': Month, 'Y': Year
         params = {
