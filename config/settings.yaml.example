@@ -1,0 +1,14 @@
+# Kronos Configuration Example
+
+# Korea Investment Securities (KIS) API Config
+kis:
+  app_key: "YOUR_APP_KEY_HERE"
+  app_secret: "YOUR_APP_SECRET_HERE"
+  account_no: "12345678-01" # Your account number
+  url_base: "https://openapi.koreainvestment.com:9443" # Real
+  # url_base: "https://openapivts.koreainvestment.com:29443" # Simulation/Paper Trading
+
+# System Config
+system:
+  log_level: "INFO"
+  db_path: "data/market_data.db"
