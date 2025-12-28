@@ -21,6 +21,16 @@
         </div>
     </div>
 </div>
+{% if error %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-danger">
+            <h4>Error</h4>
+            <p>{{ error }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if summary %}
 <div class="row">

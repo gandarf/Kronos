@@ -182,3 +182,39 @@ class KisApi:
         else:
             print(f"Error fetching balance: {res.text}")
             return None
+
+    def place_order(self, symbol, qty, price, order_type="00", buy_sell="BUY"):
+        """
+        주식 주문 (현금 매수/매도)
+        order_type: "00" (지정가), "01" (시장가)
+        buy_sell: "BUY" or "SELL"
+        """
+        # Determine TR_ID
+        is_simulation = "openapivts" in self.url_base
+        
+        if buy_sell == "BUY":
+            tr_id = "VTTC0802U" if is_simulation else "TTTC0802U"
+        else:
+            tr_id = "VTTC0801U" if is_simulation else "TTTC0801U"
+
+        url = f"{self.url_base}/uapi/domestic-stock/v1/trading/order-cash"
+        headers = self._get_headers(tr_id=tr_id)
+        
+        acc_no_prefix = self.account_no.split('-')[0]
+        acc_no_suffix = self.account_no.split('-')[1]
+
+        data = {
+            "CANO": acc_no_prefix,
+            "ACNT_PRDT_CD": acc_no_suffix,
+            "PDNO": symbol,
+            "ORD_DVSN": order_type,
+            "ORD_QTY": str(qty),
+            "ORD_UNPR": str(price),
+        }
+
+        res = requests.post(url, headers=headers, data=json.dumps(data))
+        if res.status_code == 200:
+            return res.json()
+        else:
+            print(f"Error placing order ({buy_sell} {symbol}): {res.text}")
+            return None
