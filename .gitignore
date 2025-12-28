@@ -16,6 +16,9 @@ data/token.json
 
 # Kronos Specific - Data & Logs
 data/*.db
+data/cache/
+data/*.parquet
+data/trade.log
 *.log
 test_output.txt
 collector_debug.log

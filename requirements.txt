@@ -8,3 +8,4 @@ jinja2
 matplotlib
 python-multipart
 # aiofiles # potentially needed for fastapi static files
+pyarrow

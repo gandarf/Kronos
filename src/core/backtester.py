@@ -14,7 +14,7 @@ class Backtester:
         print(f"Running Backtest for {symbol}...")
         
         # 1. Fetch Data
-        df = self.db.get_daily_price_as_df(symbol, start_date, end_date)
+        df = self.db.get_daily_price_optimized(symbol)
         if df.empty:
             print("No data found for backtesting.")
             return

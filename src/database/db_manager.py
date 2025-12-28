@@ -73,3 +73,38 @@ class DatabaseManager:
         df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df.set_index('date', inplace=True)
         return df
+
+    def get_daily_price_optimized(self, symbol):
+        """
+        Hybrid Fetch: Check Parquet Cache -> If valid, load it. Else, load from SQL and cache it.
+        """
+        cache_dir = "data/cache"
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, f"{symbol}.parquet")
+        
+        # Check Cache Validity
+        is_cache_valid = False
+        if os.path.exists(cache_path) and os.path.exists(self.db_path):
+            db_mtime = os.path.getmtime(self.db_path)
+            cache_mtime = os.path.getmtime(cache_path)
+            if cache_mtime > db_mtime:
+                is_cache_valid = True
+                
+        if is_cache_valid:
+            try:
+                # print(f"[{symbol}] Loading from Parquet Cache...")
+                return pd.read_parquet(cache_path)
+            except Exception as e:
+                print(f"[{symbol}] Failed to read cache: {e}. Fallback to SQL.")
+        
+        # Cache Miss or Invalid
+        # print(f"[{symbol}] Loading from SQL (and caching)...")
+        df = self.get_daily_price_as_df(symbol)
+        
+        if not df.empty:
+            try:
+                df.to_parquet(cache_path)
+            except Exception as e:
+                print(f"[{symbol}] Failed to write cache: {e}")
+                
+        return df

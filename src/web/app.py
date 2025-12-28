@@ -53,7 +53,7 @@ async def backtest_page(request: Request):
 async def run_backtest(request: Request, symbol: str = Form(...)):
     # 1. Check Data Availability
     # If not enough data, try to collect
-    df = db.get_daily_price_as_df(symbol)
+    df = db.get_daily_price_optimized(symbol)
     
     if len(df) < 60: # Threshold for at least 3 months for decent backtest
         print(f"Data missing/insufficient for {symbol}. Triggering Auto-Fetch...")
