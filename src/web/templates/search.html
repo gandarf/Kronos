@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">종목 검색</div>
+            <div class="card-body">
+                <form action="/web/search" method="get" class="row g-3">
+                    <div class="col-auto flex-grow-1">
+                        <input type="text" name="q" class="form-control" placeholder="회사명 또는 종목코드를 입력하세요 (예: 삼성전자)"
+                            value="{{ query }}">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">검색</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if query %}
+<div class="row">
+    <div class="col-12">
+        <h5>"{{ query }}" 검색 결과</h5>
+        {% if results %}
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>종목코드</th>
+                    <th>종목명</th>
+                    <th>기능</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in results %}
+                <tr>
+                    <td>{{ stock.code }}</td>
+                    <td>{{ stock.name }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary copy-btn" data-code="{{ stock.code }}">
+                            코드 복사
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-warning">검색 결과가 없습니다.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const code = this.getAttribute('data-code');
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code ' + code + ' copied to clipboard!');
+            });
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

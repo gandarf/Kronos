@@ -108,3 +108,46 @@ class DatabaseManager:
                 print(f"[{symbol}] Failed to write cache: {e}")
                 
         return df
+
+    def save_stock_master(self, df):
+        """
+        Save dataframe (code_short, name_kr) to stock_master table.
+        replaces existing data.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # We can clear table or replace. Since master is definitive, clear and insert is safer for consistency?
+        # Or upsert. Let's use upsert.
+        
+        data_list = list(zip(df['code_short'], df['name_kr']))
+        
+        sql = "INSERT OR REPLACE INTO stock_master (code, name) VALUES (?, ?)"
+        
+        try:
+            cursor.executemany(sql, data_list)
+            conn.commit()
+            print(f"Stock Master Updated: {len(data_list)} records.")
+        except Exception as e:
+            print(f"Error saving stock master: {e}")
+        finally:
+            conn.close()
+
+    def search_stock(self, keyword):
+        """
+        Search stock by name or code.
+        Returns list of dict: [{'code': '...', 'name': '...'}]
+        """
+        conn = self._get_connection()
+        conn.row_factory = sqlite3.Row # Access columns by name
+        cursor = conn.cursor()
+        
+        query = "SELECT code, name FROM stock_master WHERE name LIKE ? OR code LIKE ? LIMIT 50"
+        param = f"%{keyword}%"
+        
+        cursor.execute(query, (param, param))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+

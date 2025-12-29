@@ -4,17 +4,25 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">Run Backtest</div>
+            <div class="card-header">백테스팅 (전략 시뮬레이션)</div>
             <div class="card-body">
                 <form action="/web/backtest/run" method="post" class="row g-3 align-items-center">
                     <div class="col-auto">
-                        <label for="symbol" class="col-form-label">Symbol</label>
+                        <label for="symbol" class="col-form-label">종목코드</label>
                     </div>
                     <div class="col-auto">
-                        <input type="text" id="symbol" name="symbol" class="form-control" value="005930">
+                        <input type="text" id="symbol" name="symbol" class="form-control" value="005930"
+                            placeholder="ex: 005930">
                     </div>
                     <div class="col-auto">
-                        <button type="submit" class="btn btn-primary">Run Simulation</button>
+                        <select class="form-select" name="strategy_name">
+                            <option value="buy_and_hold">단순 보유 (Buy & Hold) - 벤치마크</option>
+                            <option value="ma_crossover">이동평균 크로스오버 (추세추종)</option>
+                            <option value="volatility_breakout" selected>변동성 돌파 (단타)</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">시뮬레이션 시작</button>
                     </div>
                 </form>
             </div>
@@ -25,7 +33,7 @@
 <div class="row">
     <div class="col-12">
         <div class="alert alert-danger">
-            <h4>Error</h4>
+            <h4>오류 발생</h4>
             <p>{{ error }}</p>
         </div>
     </div>
@@ -36,11 +44,17 @@
 <div class="row">
     <div class="col-12">
         <div class="alert alert-info">
-            <h4>Results for {{ symbol }}</h4>
-            <p><strong>Total Return:</strong> {{ summary.total_return_pct | round(2) }}%</p>
-            <p><strong>Final Equity:</strong> {{ "{:,.0f}".format(summary.final_equity) }} KRW</p>
-            <p><strong>MDD:</strong> {{ summary.mdd_pct | round(2) }}%</p>
-            <p><strong>Trades:</strong> {{ summary.total_trades }}</p>
+            <h4>결과 리포트 ({{ symbol }})</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>총 수익률:</strong> {{ summary.total_return_pct | round(2) }}%</p>
+                    <p><strong>최종 자산:</strong> {{ "{:,.0f}".format(summary.final_equity) }} 원</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>MDD (최대 낙폭):</strong> {{ summary.mdd_pct | round(2) }}%</p>
+                    <p><strong>매매 횟수:</strong> {{ summary.total_trades }} 회</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

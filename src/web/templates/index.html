@@ -4,28 +4,28 @@
 <div class="row">
     <div class="col-md-4">
         <div class="card text-white bg-primary">
-            <div class="card-header">Total Assets</div>
+            <div class="card-header">자산 현황</div>
             <div class="card-body">
-                <h2 class="card-title">{{ balance.total_assets | default('0') }} KRW</h2>
-                <p class="card-text">Cash: {{ balance.cash | default('0') }} KRW</p>
+                <h2 class="card-title">{{ balance.total_assets | default('0') }} 원</h2>
+                <p class="card-text">예수금: {{ balance.cash | default('0') }} 원</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card text-white bg-success">
-            <div class="card-header">Profit/Loss (Sim)</div>
+            <div class="card-header">손익 현황 (모의/실전)</div>
             <div class="card-body">
                 <h2 class="card-title">{{ balance.profit_rate | default('0.00') }} %</h2>
-                <p class="card-text">Est. Profit: {{ balance.profit_amount | default('0') }} KRW</p>
+                <p class="card-text">평가 손익: {{ balance.profit_amount | default('0') }} 원</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card text-black bg-light">
-            <div class="card-header">System Status</div>
+            <div class="card-header">시스템 상태</div>
             <div class="card-body">
-                <h2 class="card-title">🟢 Online</h2>
-                <p class="card-text">Latest Check: {{ current_time }}</p>
+                <h2 class="card-title">🟢 정상 가동 중</h2>
+                <p class="card-text">최근 확인: {{ current_time }}</p>
             </div>
         </div>
     </div>
@@ -34,18 +34,18 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">Current Holdings</div>
+            <div class="card-header">보유 종목</div>
             <div class="card-body">
                 {% if holdings %}
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Symbol</th>
-                            <th>Name</th>
-                            <th>Qty</th>
-                            <th>Avg Price</th>
-                            <th>Current Price</th>
-                            <th>Eval Profit</th>
+                            <th>종목코드</th>
+                            <th>종목명</th>
+                            <th>수량</th>
+                            <th>매입가</th>
+                            <th>현재가</th>
+                            <th>평가손익</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -62,7 +62,7 @@
                     </tbody>
                 </table>
                 {% else %}
-                <p class="text-muted">No holdings currently.</p>
+                <p class="text-muted">보유 중인 종목이 없습니다.</p>
                 {% endif %}
             </div>
         </div>

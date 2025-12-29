@@ -6,12 +6,15 @@ from datetime import datetime
 from src.api.kis import KisApi
 from src.database.db_manager import DatabaseManager
 from src.core.backtester import Backtester
+from src.core.collector import MarketDataCollector
 from src.strategies.ma_crossover import MovingAverageCrossoverStrategy
+from src.strategies.volatility_breakout import VolatilityBreakoutStrategy
+from src.strategies.buy_and_hold import BuyAndHoldStrategy
+from src.utils.krx_loader import KrxLoader
+
 
 router = APIRouter(prefix="/web")
 templates = Jinja2Templates(directory="src/web/templates")
-
-from src.core.collector import MarketDataCollector
 
 # Initialize shared resources (Quick & dirty singleton)
 kis = KisApi()
@@ -50,31 +53,53 @@ async def backtest_page(request: Request):
     return templates.TemplateResponse("backtest.html", {"request": request})
 
 @router.post("/backtest/run", response_class=HTMLResponse)
-async def run_backtest(request: Request, symbol: str = Form(...)):
+async def run_backtest(request: Request, symbol: str = Form(...), strategy_name: str = Form(...)):
     # 1. Check Data Availability
     # If not enough data, try to collect
     df = db.get_daily_price_optimized(symbol)
     
     if len(df) < 60: # Threshold for at least 3 months for decent backtest
-        print(f"Data missing/insufficient for {symbol}. Triggering Auto-Fetch...")
+        print(f"Data missing/insufficient for {symbol}. Triggering Auto-Fetch...", flush=True)
         try:
             count = collector.collect_historical_data(symbol, years=1)
-            if count == 0:
+            # Fetch again to ensure df is populated
+            df = db.get_daily_price_optimized(symbol)
+            
+            if df.empty:
                 return templates.TemplateResponse("backtest.html", {
                     "request": request, 
-                    "error": f"Invalid Symbol '{symbol}' or data collection failed (0 records found).", 
+                    "error": f"데이터 수집 실패: '{symbol}'에 대한 데이터가 없습니다. (종목코드 확인 필요)", 
                     "symbol": symbol
                 })
+
+            if len(df) < 20:
+                return templates.TemplateResponse("backtest.html", {
+                    "request": request, 
+                    "error": f"데이터 부족: '{symbol}'의 과거 데이터가 너무 적습니다 ({len(df)}일). 최근 상장된 종목일 수 있습니다. (최소 20일 필요)", 
+                    "symbol": symbol
+                })
+                
         except Exception as e:
             return templates.TemplateResponse("backtest.html", {
                 "request": request, 
-                "error": f"Error collecting data: {str(e)}", 
+                "error": f"데이터 수집 중 오류: {str(e)}", 
                 "symbol": symbol
             })
 
-    # 2. Run Backtest
-    strategy = MovingAverageCrossoverStrategy(short_window=5, long_window=20, regime_window=60)
-    backtester = Backtester(db, strategy, commission_rate=0.000140527)
+    # 2. Select Strategy
+    if strategy_name == "volatility_breakout":
+        strategy = VolatilityBreakoutStrategy(k=0.5)
+    elif strategy_name == "ma_crossover":
+        # short=5, long=20, regime=60 (bull market filter)
+        strategy = MovingAverageCrossoverStrategy(short_window=5, long_window=20, regime_window=60)
+    elif strategy_name == "buy_and_hold":
+        strategy = BuyAndHoldStrategy()
+    else:
+        # Default
+        strategy = VolatilityBreakoutStrategy(k=0.5)
+
+    # 3. Run Backtest
+    backtester = Backtester(db, strategy, commission_rate=0.000140527, tax_rate=0.002)
     
     summary = backtester.run(symbol, initial_capital=10_000_000)
     
@@ -82,11 +107,49 @@ async def run_backtest(request: Request, symbol: str = Form(...)):
          return templates.TemplateResponse("backtest.html", {
             "request": request, 
             "error": "Backtest finished with no results (Insufficient history for strategy?)", 
-            "symbol": symbol
+            "symbol": symbol,
+            "selected_strategy": strategy_name
         })
     
     return templates.TemplateResponse("backtest.html", {
         "request": request, 
         "summary": summary, 
-        "symbol": symbol
+        "symbol": symbol,
+        "selected_strategy": strategy_name
     })
+
+
+
+@router.on_event("startup")
+async def check_master_data():
+    """Check if stock master data exists, if not, download it."""
+    try:
+        # Check if table has data (Quick count)
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT count(*) FROM stock_master")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        if count == 0:
+            print("Stock Master DB is empty. Downloading KOSPI master file...")
+            loader = KrxLoader()
+            df = loader.download_and_parse()
+            if not df.empty:
+                db.save_stock_master(df)
+            else:
+                print("Warning: Failed to download/parse Stock Master.")
+        else:
+            print(f"Stock Master DB ready ({count} records).")
+            
+    except Exception as e:
+        print(f"Startup Data Check Failed: {e}")
+
+@router.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, q: str = ""):
+    results = []
+    if q:
+        results = db.search_stock(q)
+        
+    return templates.TemplateResponse("search.html", {"request": request, "results": results, "query": q})
+

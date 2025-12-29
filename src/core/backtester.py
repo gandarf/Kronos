@@ -3,15 +3,16 @@ from src.database.db_manager import DatabaseManager
 from src.strategies.base import Strategy
 
 class Backtester:
-    def __init__(self, db: DatabaseManager, strategy: Strategy, commission_rate=0.000140527):
+    def __init__(self, db: DatabaseManager, strategy: Strategy, commission_rate=0.000140527, tax_rate=0.002):
         self.db = db
         self.strategy = strategy
         self.commission_rate = commission_rate
+        self.tax_rate = tax_rate
         self.results = []
         self.equity_curve = []
 
     def run(self, symbol, start_date=None, end_date=None, initial_capital=10_000_000):
-        print(f"Running Backtest for {symbol}...")
+        print(f"Running Backtest for {symbol} with {self.strategy.__class__.__name__}...", flush=True)
         
         # 1. Fetch Data
         df = self.db.get_daily_price_optimized(symbol)
@@ -54,67 +55,101 @@ class Backtester:
             signal_res = self.strategy.calculate_signals(history)
             signal = signal_res['signal']
             
-            # Execute
-            trade_occured = False
-            if signal == "BUY":
-                if cash > 0:
-                    # Buy All
-                    amount_investable = cash * (1 - self.commission_rate)
-                    qty = int(amount_investable // current_price)
-                    if qty > 0:
-                        cost = qty * current_price
-                        fee = cost * self.commission_rate
-                        cash -= (cost + fee)
-                        holdings += qty
-                        avg_price = current_price # Simplified avg
-                        trade_occured = True
-                        self.results.append({
-                            "date": current_date,
-                            "type": "BUY",
-                            "price": current_price,
-                            "qty": qty,
-                            "fee": fee,
-                            "reason": signal_res['reason']
-                        })
+            # --- Execution Logic Correction for Volatility Breakout & General ---
+            # Standard Buy: Signal BUY -> Buy at 'current_price' (Close)
+            # VB Buy: Signal BUY -> Buy at 'entry_price', Sell at 'exit_price' (Day Trade)
             
+            trade_occured = False
+            
+            if signal == "BUY":
+                # Check if it's a Day Trade (VB Strategy)
+                if 'exit_price' in signal_res and 'entry_price' in signal_res:
+                    # Intraday Trade Logic
+                    entry_price = signal_res['entry_price']
+                    exit_price = signal_res['exit_price']
+                    weight = signal_res.get('weight', 1.0)
+                    
+                    if cash > 0:
+                        amount_investable = cash * weight * (1 - self.commission_rate)
+                        qty = int(amount_investable // entry_price)
+                        
+                        if qty > 0:
+                            # Buy
+                            cost = qty * entry_price
+                            buy_fee = cost * self.commission_rate
+                            
+                            # Sell (Immediate Exit at Close)
+                            revenue = qty * exit_price
+                            sell_fee = revenue * self.commission_rate
+                            sell_tax = revenue * self.tax_rate
+                            
+                            profit = revenue - cost - buy_fee - sell_fee - sell_tax
+                            cash += profit
+                            
+                            # Log Buy
+                            self.results.append({
+                                "date": current_date,
+                                "type": "BUY",
+                                "price": entry_price,
+                                "qty": qty,
+                                "fee": buy_fee,
+                                "reason": signal_res['reason']
+                            })
+                            # Log Sell
+                            self.results.append({
+                                "date": current_date,
+                                "type": "SELL",
+                                "price": exit_price,
+                                "qty": qty,
+                                "fee": sell_fee,
+                                "tax": sell_tax,
+                                "reason": "DayTrade Exit"
+                            })
+                            trade_occured = True
+                            
+                else:
+                    # Standard Swing Trade Logic (Buy and Hold)
+                    if cash > 0:
+                        amount_investable = cash * (1 - self.commission_rate)
+                        qty = int(amount_investable // current_price)
+                        if qty > 0:
+                            cost = qty * current_price
+                            fee = cost * self.commission_rate
+                            cash -= (cost + fee)
+                            holdings += qty
+                            avg_price = current_price
+                            trade_occured = True
+                            self.results.append({
+                                "date": current_date,
+                                "type": "BUY",
+                                "price": current_price,
+                                "qty": qty,
+                                "fee": fee,
+                                "reason": signal_res.get('reason', 'Signal')
+                            })
+
             elif signal == "SELL":
+                # Standard Sell Logic
                 if holdings > 0:
-                    # Sell All
-                    revenue = holdings * current_price
+                    qty_to_sell = holdings
+                    revenue = qty_to_sell * current_price
                     fee = revenue * self.commission_rate
-                    cash += (revenue - fee)
+                    tax = revenue * self.tax_rate
+                    cash += (revenue - fee - tax)
                     holdings = 0
                     trade_occured = True
                     self.results.append({
                         "date": current_date,
                         "type": "SELL",
                         "price": current_price,
-                        "qty": holdings, # 0 now, record prev holdings? logic error here.
-                        # Fix: holdings was cleared before logging.
-                        # Correct logic:
-                        # qty = holdings
-                        # holdings = 0
+                        "qty": qty_to_sell,
+                        "fee": fee,
+                        "tax": tax,
+                        "reason": signal_res.get('reason', 'Signal')
                     })
-                    # Re-write Sell Block
-            
-            # Re-implement Sell Logic properly
-            if signal == "SELL" and holdings > 0 and not trade_occured: # Ensure we didn't buy same tick
-                 qty_to_sell = holdings
-                 revenue = qty_to_sell * current_price
-                 fee = revenue * self.commission_rate
-                 cash += (revenue - fee)
-                 holdings = 0
-                 trade_occured = True
-                 self.results.append({
-                    "date": current_date,
-                    "type": "SELL",
-                    "price": current_price,
-                    "qty": qty_to_sell,
-                    "fee": fee,
-                    "reason": signal_res['reason']
-                })
 
             # Record Equity
+            # For Day Trade, holdings is 0 at EOD, so Equity = Cash.
             equity = cash + (holdings * current_price)
             self.equity_curve.append({
                 "date": current_date,

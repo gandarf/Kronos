@@ -8,3 +8,8 @@ CREATE TABLE IF NOT EXISTS daily_price (
     volume INTEGER,
     PRIMARY KEY (symbol, date)
 );
+
+CREATE TABLE IF NOT EXISTS stock_master (
+    code TEXT PRIMARY KEY,
+    name TEXT
+);
