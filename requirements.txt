@@ -9,3 +9,5 @@ matplotlib
 python-multipart
 # aiofiles # potentially needed for fastapi static files
 pyarrow
+finance-datareader
+yfinance

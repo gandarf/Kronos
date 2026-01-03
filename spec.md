@@ -1,7 +1,7 @@
 # Kronos 개발 사양서 (Development Specification)
 
 ## 1. 개요 (Overview)
-**Kronos**는 한국투자증권 Open API를 활용한 퀀트 투자 시스템입니다. 라즈베리 파이(Debian) 환경에서 구동되며, 단계적 접근(백테스팅 -> 모의투자 -> 실전투자)을 통해 안정적인 수익 모델을 찾는 것을 목표로 합니다.
+**Kronos**는 한국투자증권 Open API와 Yahoo Finance를 활용한 미국 주식 퀀트 투자 시스템입니다. 라즈베리 파이(Debian) 환경에서 구동되며, 단계적 접근(백테스팅 -> 모의투자 -> 실전투자)을 통해 안정적인 수익 모델을 찾는 것을 목표로 합니다.
 
 ## 2. 목표 (Goals)
 - **1단계**: 데이터 수집 및 기본 전략(단순 이동평균 등) 백테스팅 구현.
@@ -12,7 +12,8 @@
 ## 3. 기술 스택 (Tech Stack)
 - **Language**: Python 3.9+
 - **OS**: Debian (Raspberry Pi)
-- **Broker API**: 한국투자증권(KIS) Open API
+- **Broker API**: 한국투자증권(KIS) Open API (주문/잔고 조회용)
+- **Data Source**: yfinance (과거 데이터 수집용)
 - **Web Framework**: FastAPI (또는 Flask) - 대시보드 및 컨트롤러용
 - **Database**: SQLite (초기 단계), 필요 시 PostgreSQL로 확장
 - **Scheduler**: APScheduler (정기 데이터 수집 및 매매 타이밍 제어)
@@ -28,7 +29,7 @@
 - **Scheduler**: 장 시작/마감, 데이터 수집 주기 등을 관리.
 
 ### 4.2. Data Module (데이터)
-- **MarketDataCollector**: KIS API를 통해 실시간/과거 주가 데이터를 수집 및 자동 보정(Auto-Fetch).
+- **MarketDataCollector**: `yfinance`를 통해 미국 주식(S&P 500 등)의 실시간/과거 데이터를 수집합니다.
 - **Repository (DatabaseManager)**: 
     - **Hybrid Storage**: SQLite(신뢰성) + Parquet(성능) 하이브리드 구조.
     - **Optimization**: 백테스팅 데이터 로딩 속도 향상을 위한 Parquet 캐싱 레이어 적용.
@@ -54,12 +55,16 @@
     - 시뮬레이션 결과(수익률, MDD, 승률) 및 **로그(Debug Log)** 출력.
 
 ### 4.6. 백테스팅 엔진 (Backtesting Engine)
-- **Enhanced Logic**:
-    - **Intraday Simulation**: 시가, 고가, 저가, 종가를 모두 활용하여 장중 돌파 매매 시뮬레이션 지원.
-    - **Execution Timing**: 
-        - 당일 종가(Close-on-Close)
-        - 익일 시가(Next Open)
-        - 장중 지정가(Intraday Limit/Stop) 지원.
+
+- **Implementation Modes (구현 모드)**:
+    1. **거치식 (Lump-sum Buy & Hold)**:
+        - 지정된 기간(Start Date ~ End Date) 동안 초기 자금을 모두 매수 후 보유했을 때의 수익률(CAGR, MDD 등) 계산.
+    2. **적립식 (Monthly DCA)**:
+        - 매달 지정된 금액을 정해진 날짜에 투자하는 적립식 투자 시뮬레이션.
+        - 평균 매입 단가(Average Cost) 희석 효과 및 최종 수익률 분석.
+    3. **알고리즘에 따른 매매 시점**:
+        - AI 추천에 따른 매매 시점.
+    
 
 ## 5. 데이터 흐름 (Data Flow)
 1. **Collector**가 API를 통해 데이터 수집 -> **SQLite & Parquet** 저장.

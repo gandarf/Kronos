@@ -3,56 +3,96 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">백테스팅 (전략 시뮬레이션)</div>
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Backtest & Simulation (US Market Focused)</h5>
+            </div>
             <div class="card-body">
-                <form action="/web/backtest/run" method="post" class="row g-3 align-items-center">
-                    <div class="col-auto">
-                        <label for="symbol" class="col-form-label">종목코드</label>
+                <form action="/web/backtest/run" method="post">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="symbol" class="form-label">Symbol (Ticker)</label>
+                            <input type="text" id="symbol" name="symbol" class="form-control"
+                                placeholder="e.g. AAPL, TSLA, SPY">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="strategy_name" class="form-label">Strategy</label>
+                            <select class="form-select" name="strategy_name">
+                                <option value="buy_and_hold">단순 보유 (Buy & Hold) - Benchmark</option>
+                                <option value="basic_dca">기본 적립식 (Basic Monthly DCA)</option>
+                                <option value="dynamic_dca" selected>심화 적립식 (Dynamic DCA - Regime Based)</option>
+                                <option value="volatility_breakout">변동성 돌파 (Volatility Breakout)</option>
+                                <option value="ma_crossover">이동평균 크로스오버 (MA Crossover)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="initial_capital" class="form-label">Initial Capital ($)</label>
+                            <input type="number" id="initial_capital" name="initial_capital" class="form-control"
+                                value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="monthly_deposit" class="form-label">Monthly Deposit ($)</label>
+                            <input type="number" id="monthly_deposit" name="monthly_deposit" class="form-control"
+                                value="1000">
+                        </div>
                     </div>
-                    <div class="col-auto">
-                        <input type="text" id="symbol" name="symbol" class="form-control" value="005930"
-                            placeholder="ex: 005930">
-                    </div>
-                    <div class="col-auto">
-                        <select class="form-select" name="strategy_name">
-                            <option value="buy_and_hold">단순 보유 (Buy & Hold) - 벤치마크</option>
-                            <option value="ma_crossover">이동평균 크로스오버 (추세추종)</option>
-                            <option value="volatility_breakout" selected>변동성 돌파 (단타)</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary">시뮬레이션 시작</button>
+                    <div class="row mt-3">
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary px-4">Run Simulation</button>
+                        </div>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
 {% if error %}
-<div class="row">
-    <div class="col-12">
-        <div class="alert alert-danger">
-            <h4>오류 발생</h4>
-            <p>{{ error }}</p>
-        </div>
-    </div>
+<div class="alert alert-danger" role="alert">
+    <strong>Error:</strong> {{ error }}
 </div>
 {% endif %}
 
 {% if summary %}
 <div class="row">
     <div class="col-12">
-        <div class="alert alert-info">
-            <h4>결과 리포트 ({{ symbol }})</h4>
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>총 수익률:</strong> {{ summary.total_return_pct | round(2) }}%</p>
-                    <p><strong>최종 자산:</strong> {{ "{:,.0f}".format(summary.final_equity) }} 원</p>
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                Result Report: <strong>{{ symbol }}</strong> ({{ selected_strategy }})
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body">
+                                <h6 class="text-secondary">Total Return</h6>
+                                <h2 class="{{ 'text-success' if summary.total_return_pct >= 0 else 'text-danger' }}">
+                                    {{ summary.total_return_pct | round(2) }}%
+                                </h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body">
+                                <h6 class="text-secondary">Final Equity</h6>
+                                <h3>${{ "{:,.2f}".format(summary.final_equity) }}</h3>
+                                <small class="text-muted">Invested: ${{ "{:,.0f}".format(summary.total_invested or
+                                    summary.initial_capital) }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body">
+                                <h6 class="text-secondary">Max Drawdown (MDD)</h6>
+                                <h3 class="text-danger">{{ summary.mdd_pct | round(2) }}%</h3>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <p><strong>MDD (최대 낙폭):</strong> {{ summary.mdd_pct | round(2) }}%</p>
-                    <p><strong>매매 횟수:</strong> {{ summary.total_trades }} 회</p>
+                <div class="text-end text-muted small">
+                    Total Trades: {{ summary.total_trades }}
                 </div>
             </div>
         </div>

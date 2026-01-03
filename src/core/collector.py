@@ -1,4 +1,5 @@
 from datetime import datetime
+import yfinance as yf
 from src.api.kis import KisApi
 from src.database.db_manager import DatabaseManager
 
@@ -7,92 +8,55 @@ class MarketDataCollector:
         self.kis = kis
         self.db = db
 
-    def collect_daily_price(self, symbol, start_date, end_date):
-        """
-        Fetch daily price from KIS and save to DB
-        start_date, end_date: YYYYMMDD string
-        """
-        # print(f"[{symbol}] Collecting data from {start_date} to {end_date}...")
-        
-        # Fetch from API
-        raw_data = self.kis.get_daily_price(symbol, start_date, end_date)
-        if not raw_data:
-            print(f"[{symbol}] No data returned.")
-            return 0
-
-        # Parse and prepare for DB
-        db_rows = []
-        for row in raw_data:
-            # API format: stck_bsop_date, stck_oprc, stck_hgpr, stck_lwpr, stck_clpr, acml_vol
-            # DB schema: symbol, date, open, high, low, close, volume
-            try:
-                item = (
-                    symbol,
-                    row['stck_bsop_date'],
-                    float(row['stck_oprc']),
-                    float(row['stck_hgpr']),
-                    float(row['stck_lwpr']),
-                    float(row['stck_clpr']),
-                    int(row['acml_vol'])
-                )
-                db_rows.append(item)
-            except ValueError:
-                continue
-
-        # Save to DB
-        saved_count = 0
-        if db_rows:
-            self.db.insert_daily_price(db_rows)
-            saved_count = len(db_rows)
-            print(f"[{symbol}] Saved {saved_count} records to DB.")
-        else:
-            print(f"[{symbol}] No valid records to save.")
-            
-        return saved_count
-
     def collect_historical_data(self, symbol, years=1):
         """
-        Collect historical data for the given symbol for the past 'years'.
-        Fetches in 30-day chunks to avoid API limits.
+        Collect historical data using yfinance.
+        Fetches data and saves to DB.
         """
-        from datetime import  timedelta
-        print(f"[{symbol}] Starting historical data collection for {years} year(s)...")
-        end_date = datetime.now()
-        start_date_overall = end_date - timedelta(days=365 * years)
-        
-        current_date = end_date
-        
-        # Safety limit for iterations (e.g., 12 months + buffer)
-        max_months = years * 12 + 2 
-        
-        total_saved = 0
+        print(f"[{symbol}] Starting historical data collection via yfinance...")
         try:
-            for _ in range(max_months):
-                if current_date <= start_date_overall:
-                    break
-                    
-                # Define chunk
-                start_chunk = current_date - timedelta(days=30)
-                if start_chunk < start_date_overall:
-                    start_chunk = start_date_overall
+            # yfinance download
+            start_date = None
+            if years > 0:
+                ticker = yf.Ticker(symbol)
+                # period="1y", "2y", "max" etc
+                period = f"{years}y"
+                hist = ticker.history(period=period)
+            else:
+                 # Default logic or max?
+                 ticker = yf.Ticker(symbol)
+                 hist = ticker.history(period="1y")
+
+            if hist.empty:
+                print(f"[{symbol}] No data found on yfinance.")
+                return 0
+            
+            # Format/Save logic
+            # yfinance returns DataFrame with Index=Date, Columns=Open, High, Low, Close, Volume, Dividends, Stock Splits
+            # DB schema expects: symbol, date(YYYYMMDD), open, high, low, close, volume
+            
+            db_rows = []
+            for date, row in hist.iterrows():
+                date_str = date.strftime("%Y%m%d")
+                item = (
+                    symbol,
+                    date_str,
+                    float(row['Open']),
+                    float(row['High']),
+                    float(row['Low']),
+                    float(row['Close']),
+                    int(row['Volume'])
+                )
+                db_rows.append(item)
                 
-                # Ensure date format
-                end_str = current_date.strftime("%Y%m%d")
-                start_str = start_chunk.strftime("%Y%m%d")
-                
-                # Fetch
-                count = self.collect_daily_price(symbol, start_str, end_str)
-                total_saved += count
-                
-                # Move back
-                current_date = start_chunk - timedelta(days=1)
-                
-                import time
-                time.sleep(0.5) # Throttle to be nice
-                
+            # Save to DB
+            if db_rows:
+                self.db.insert_daily_price(db_rows)
+                print(f"[{symbol}] Saved {len(db_rows)} records to DB.")
+                return len(db_rows)
+            
         except Exception as e:
             print(f"Error during collection: {e}")
             raise e
             
-        print(f"[{symbol}] Historical collection complete. Total saved: {total_saved}")
-        return total_saved
+        return 0

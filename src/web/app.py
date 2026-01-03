@@ -10,7 +10,10 @@ from src.core.collector import MarketDataCollector
 from src.strategies.ma_crossover import MovingAverageCrossoverStrategy
 from src.strategies.volatility_breakout import VolatilityBreakoutStrategy
 from src.strategies.buy_and_hold import BuyAndHoldStrategy
-from src.utils.krx_loader import KrxLoader
+from src.strategies.dca import BasicDCAStrategy, DynamicDCAStrategy
+from src.strategies.dca import BasicDCAStrategy, DynamicDCAStrategy
+from src.utils.market_loader import MarketLoader
+
 
 
 router = APIRouter(prefix="/web")
@@ -99,7 +102,16 @@ async def run_backtest(request: Request, symbol: str = Form(...), strategy_name:
         strategy = VolatilityBreakoutStrategy(k=0.5)
 
     # 3. Run Backtest
-    backtester = Backtester(db, strategy, commission_rate=0.000140527, tax_rate=0.002)
+    # Korea: Comm ~0.014%, Tax 0.2%
+    # US: Comm ~0.25% (vary), Tax 0% (Transaction tax is 0, Capital gains is separate)
+    if symbol.isdigit():
+        commission_rate = 0.000140527
+        tax_rate = 0.002
+    else: # US
+        commission_rate = 0.0025
+        tax_rate = 0.0
+        
+    backtester = Backtester(db, strategy, commission_rate=commission_rate, tax_rate=tax_rate)
     
     summary = backtester.run(symbol, initial_capital=10_000_000)
     
@@ -131,8 +143,8 @@ async def check_master_data():
         count = cursor.fetchone()[0]
         conn.close()
         
-        if count == 0:
-            print("Stock Master DB is empty. Downloading KOSPI master file...")
+        if count < 5000:
+            print(f"Stock Master DB has {count} records. Downloading Full Master Data (KRX+US)...")
             loader = KrxLoader()
             df = loader.download_and_parse()
             if not df.empty:

@@ -133,6 +133,28 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def save_us_stock_master(self, df):
+        """
+        Save US stock dataframe (code, name) to stock_master.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Assuming df has 'code' and 'name'
+        data_list = list(zip(df['code'], df['name']))
+        
+        sql = "INSERT OR REPLACE INTO stock_master (code, name) VALUES (?, ?)"
+        
+        try:
+            cursor.executemany(sql, data_list)
+            conn.commit()
+            print(f"US Stock Master Updated: {len(data_list)} records.")
+        except Exception as e:
+            print(f"Error saving US stock master: {e}")
+        finally:
+            conn.close()
+
+
     def search_stock(self, keyword):
         """
         Search stock by name or code.

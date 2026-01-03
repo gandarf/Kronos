@@ -218,3 +218,71 @@ class KisApi:
         else:
             print(f"Error placing order ({buy_sell} {symbol}): {res.text}")
             return None
+
+    def get_overseas_price(self, symbol, exchange_code="NAS"):
+        """
+        해외주식 현재가 시세 조회
+        Note:
+        TR_ID (Real): HHDFS00000300
+        TR_ID (Virtual): HHDFS76200200
+        """
+        is_virtual = "openapivts" in self.url_base
+        tr_id = "HHDFS76200200" if is_virtual else "HHDFS00000300"
+        
+        url = f"{self.url_base}/uapi/overseas-price/v1/quotations/price"
+        headers = self._get_headers(tr_id=tr_id)
+        
+        # params
+        # AUTH: User ID? (Docs say keep empty usually)
+        # EXCD: Exchange Code (NAS, NYS, AMS)
+        # SYMB: Ticker
+        
+        params = {
+            "AUTH": "",
+            "EXCD": exchange_code,
+            "SYMB": symbol
+        }
+        
+        res = requests.get(url, headers=headers, params=params)
+        if res.status_code == 200:
+            return res.json().get('output', {})
+        else:
+            print(f"Error fetching overseas price for {symbol}: {res.text}")
+            return None
+
+    def get_overseas_daily_price(self, symbol, exchange_code="NAS", period_code="D"):
+        """
+        해외주식 기간별 시세 (일/주/월)
+        TR_ID (Real): HHDFS76240000
+        TR_ID (Virtual): HHDFS76240000 
+        """
+        is_virtual = "openapivts" in self.url_base
+        tr_id = "HHDFS76240000"
+        
+        url = f"{self.url_base}/uapi/overseas-price/v1/quotations/dailyprice"
+        headers = self._get_headers(tr_id=tr_id)
+        
+        # GUBUN: 0(Daily), 1(Weekly), 2(Monthly)
+        gubun = "0"
+        if period_code == "W": gubun = "1"
+        elif period_code == "M": gubun = "2"
+        
+        # BYMD: Base date. If empty, recent.
+        from datetime import datetime
+        today_str = datetime.now().strftime("%Y%m%d")
+
+        params = {
+            "AUTH": "",
+            "EXCD": exchange_code,
+            "SYMB": symbol,
+            "GUBN": gubun, 
+            "BYMD": today_str,
+            "MODP": "1"
+        }
+        
+        res = requests.get(url, headers=headers, params=params)
+        if res.status_code == 200:
+            return res.json().get('output2', [])
+        else:
+            print(f"Error fetching overseas daily price for {symbol}: {res.text}")
+            return []
