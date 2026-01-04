@@ -221,15 +221,20 @@ class Backtester:
         drawdown = (equity_series - rolling_max) / rolling_max * 100
         mdd = drawdown.min()
         
-        # Count Trades vs Dividends
+        # Count Trades vs Dividends and separate income
         total_trades = 0
         total_dividends = 0
+        dividend_income = 0.0
         
         for r in self.results:
             if r['type'] == 'DIVIDEND':
                 total_dividends += 1
+                dividend_income += r.get('profit', 0)
             else:
                 total_trades += 1
+
+        total_net_profit = final_equity - total_invested
+        capital_gains = total_net_profit - dividend_income
         
         return {
             "initial_capital": initial_capital,
@@ -238,5 +243,7 @@ class Backtester:
             "total_return_pct": total_return,
             "mdd_pct": mdd,
             "total_trades": total_trades,
-            "total_dividends": total_dividends
+            "total_dividends": total_dividends,
+            "dividend_income": dividend_income,
+            "capital_gains": capital_gains
         }
