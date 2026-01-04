@@ -13,3 +13,10 @@ CREATE TABLE IF NOT EXISTS stock_master (
     code TEXT PRIMARY KEY,
     name TEXT
 );
+
+CREATE TABLE IF NOT EXISTS dividends (
+    symbol TEXT NOT NULL,
+    date TEXT NOT NULL,
+    dividend REAL,
+    PRIMARY KEY (symbol, date)
+);

@@ -121,6 +121,7 @@ def main():
         print(f" Total Return    : {res['total_return_pct']:.2f}%")
         print(f" MDD             : {res['mdd_pct']:.2f}%")
         print(f" Trades          : {res['total_trades']}")
+        print(f" Dividends       : {res['total_dividends']}")
         print("="*40)
     else:
         print("Backtest failed or returned no results.")

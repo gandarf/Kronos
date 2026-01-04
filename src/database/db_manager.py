@@ -173,3 +173,42 @@ class DatabaseManager:
         
         return [dict(row) for row in rows]
 
+    def insert_dividends(self, dividend_list):
+        """
+        dividend_list: list of (symbol, date, dividend)
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        sql = "INSERT OR REPLACE INTO dividends (symbol, date, dividend) VALUES (?, ?, ?)"
+        
+        try:
+            cursor.executemany(sql, dividend_list)
+            conn.commit()
+            print(f"Dividends Updated: {len(dividend_list)} records.")
+        except Exception as e:
+            print(f"Error saving dividends: {e}")
+        finally:
+            conn.close()
+
+    def get_dividends(self, symbol, start_date=None, end_date=None):
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        query = "SELECT date, dividend FROM dividends WHERE symbol = ?"
+        params = [symbol]
+        
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
+            
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Return as dict {date_str: amount}
+        return {row[0]: row[1] for row in rows}
+

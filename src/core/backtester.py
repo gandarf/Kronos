@@ -3,11 +3,12 @@ from src.database.db_manager import DatabaseManager
 from src.strategies.base import Strategy
 
 class Backtester:
-    def __init__(self, db: DatabaseManager, strategy: Strategy, commission_rate=0.000140527, tax_rate=0.002):
+    def __init__(self, db: DatabaseManager, strategy: Strategy, commission_rate=0.000140527, tax_rate=0.002, dividend_tax_rate=0.15):
         self.db = db
         self.strategy = strategy
         self.commission_rate = commission_rate
         self.tax_rate = tax_rate
+        self.dividend_tax_rate = dividend_tax_rate
         self.results = []
         self.equity_curve = []
 
@@ -19,6 +20,9 @@ class Backtester:
         if df.empty:
             print("No data found for backtesting.")
             return
+
+        # Fetch Dividends
+        div_map = self.db.get_dividends(symbol) # {date_str: amount}
 
         # Filter by Date
         if start_date:
@@ -57,6 +61,28 @@ class Backtester:
             current_bar = df.iloc[i]
             current_price = current_bar['close']
             
+            # --- Dividend Logic ---
+            date_str = current_date.strftime("%Y%m%d")
+            if date_str in div_map and holdings > 0:
+                div_per_share = div_map[date_str]
+                gross_div = holdings * div_per_share
+                div_tax = gross_div * self.dividend_tax_rate
+                net_div = gross_div - div_tax
+                
+                cash += net_div
+                
+                self.results.append({
+                    "date": current_date,
+                    "type": "DIVIDEND",
+                    "price": div_per_share,
+                    "qty": holdings,
+                    "fee": 0,
+                    "tax": div_tax,
+                    "profit": net_div, # Using profit field for net amount
+                    "reason": "Dividend Received"
+                })
+                # print(f"[{date_str}] Dividend: {gross_div:.2f} (Tax: {div_tax:.2f}) -> +{net_div:.2f}")
+
             history = df.iloc[:i+1]
             
             # Run Strategy
@@ -195,11 +221,22 @@ class Backtester:
         drawdown = (equity_series - rolling_max) / rolling_max * 100
         mdd = drawdown.min()
         
+        # Count Trades vs Dividends
+        total_trades = 0
+        total_dividends = 0
+        
+        for r in self.results:
+            if r['type'] == 'DIVIDEND':
+                total_dividends += 1
+            else:
+                total_trades += 1
+        
         return {
             "initial_capital": initial_capital,
             "total_invested": total_invested,
             "final_equity": final_equity,
             "total_return_pct": total_return,
             "mdd_pct": mdd,
-            "total_trades": len(self.results)
+            "total_trades": total_trades,
+            "total_dividends": total_dividends
         }

@@ -33,9 +33,10 @@ class MarketDataCollector:
             
             # Format/Save logic
             # yfinance returns DataFrame with Index=Date, Columns=Open, High, Low, Close, Volume, Dividends, Stock Splits
-            # DB schema expects: symbol, date(YYYYMMDD), open, high, low, close, volume
             
             db_rows = []
+            dividend_rows = []
+            
             for date, row in hist.iterrows():
                 date_str = date.strftime("%Y%m%d")
                 item = (
@@ -49,10 +50,18 @@ class MarketDataCollector:
                 )
                 db_rows.append(item)
                 
+                # Check for Dividend
+                if 'Dividends' in row and row['Dividends'] > 0:
+                    dividend_rows.append((symbol, date_str, float(row['Dividends'])))
+
             # Save to DB
             if db_rows:
                 self.db.insert_daily_price(db_rows)
-                print(f"[{symbol}] Saved {len(db_rows)} records to DB.")
+                
+                if dividend_rows:
+                    self.db.insert_dividends(dividend_rows)
+                    
+                print(f"[{symbol}] Saved {len(db_rows)} records (and {len(dividend_rows)} dividends) to DB.")
                 return len(db_rows)
             
         except Exception as e:
