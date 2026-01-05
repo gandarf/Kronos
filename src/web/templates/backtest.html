@@ -5,37 +5,49 @@
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header bg-dark text-white">
-                <h5 class="mb-0">Backtest & Simulation (US Market Focused)</h5>
+                <h5 class="mb-0">Backtest & Simulation (US Check)</h5>
             </div>
             <div class="card-body">
-                <form action="/web/backtest/run" method="post">
+                <form action="/web/backtest/run" method="post" id="backtestForm">
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label for="symbol" class="form-label">Symbol (Ticker)</label>
                             <input type="text" id="symbol" name="symbol" class="form-control"
-                                placeholder="e.g. AAPL, TSLA, SPY">
+                                placeholder="e.g. AAPL, SPY" value="{{ symbol|default('') }}" required>
                         </div>
                         <div class="col-md-3">
-                            <label for="strategy_name" class="form-label">Strategy</label>
-                            <select class="form-select" name="strategy_name">
-                                <option value="buy_and_hold">단순 보유 (Buy & Hold) - Benchmark</option>
-                                <option value="basic_dca">기본 적립식 (Basic Monthly DCA)</option>
-                                <option value="dynamic_dca" selected>심화 적립식 (Dynamic DCA - Regime Based)</option>
-                                <option value="volatility_breakout">변동성 돌파 (Volatility Breakout)</option>
-                                <option value="ma_crossover">이동평균 크로스오버 (MA Crossover)</option>
+                            <label for="mode" class="form-label">Simulation Mode</label>
+                            <select class="form-select" id="mode" name="mode" onchange="toggleFields()">
+                                <option value="lump" {% if mode=='lump' %}selected{% endif %}>거치식 (Lump Sum)</option>
+                                <option value="dca" {% if mode=='dca' %}selected{% endif %}>적립식 (DCA)</option>
+                                <option value="algo" {% if mode=='algo' %}selected{% endif %}>알고리즘 (Algorithm)</option>
                             </select>
                         </div>
+
+                        <!-- Initial Capital -->
                         <div class="col-md-3">
                             <label for="initial_capital" class="form-label">Initial Capital ($)</label>
                             <input type="number" id="initial_capital" name="initial_capital" class="form-control"
-                                value="0">
+                                value="10000">
                         </div>
-                        <div class="col-md-3">
+
+                        <!-- Monthly Deposit (Only for DCA) -->
+                        <div class="col-md-3" id="deposit-group" style="display: none;">
                             <label for="monthly_deposit" class="form-label">Monthly Deposit ($)</label>
                             <input type="number" id="monthly_deposit" name="monthly_deposit" class="form-control"
                                 value="1000">
                         </div>
+
+                        <!-- Strategy (Only for Algo) -->
+                        <div class="col-md-3" id="strategy-group" style="display: none;">
+                            <label for="strategy_name" class="form-label">Strategy</label>
+                            <select class="form-select" name="strategy_name">
+                                <option value="volatility_breakout">변동성 돌파 (Volatility Breakout)</option>
+                                <option value="ma_crossover">이동평균 크로스오버 (MA Crossover)</option>
+                            </select>
+                        </div>
                     </div>
+
                     <div class="row mt-3">
                         <div class="col-12 text-end">
                             <button type="submit" class="btn btn-primary px-4">Run Simulation</button>
@@ -47,6 +59,28 @@
     </div>
 </div>
 
+<script>
+    function toggleFields() {
+        const mode = document.getElementById('mode').value;
+        const depositGroup = document.getElementById('deposit-group');
+        const strategyGroup = document.getElementById('strategy-group');
+
+        if (mode === 'dca') {
+            depositGroup.style.display = 'block';
+            strategyGroup.style.display = 'none';
+        } else if (mode === 'algo') {
+            depositGroup.style.display = 'none';
+            strategyGroup.style.display = 'block';
+        } else {
+            // Lump Sum
+            depositGroup.style.display = 'none';
+            strategyGroup.style.display = 'none';
+        }
+    }
+    // Init on load
+    window.onload = toggleFields;
+</script>
+
 {% if error %}
 <div class="alert alert-danger" role="alert">
     <strong>Error:</strong> {{ error }}
@@ -57,12 +91,14 @@
 <div class="row">
     <div class="col-12">
         <div class="card border-info">
-            <div class="card-header bg-info text-white">
-                Result Report: <strong>{{ symbol }}</strong> ({{ selected_strategy }})
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <span>Result Report: <strong>{{ symbol }}</strong></span>
+                <span class="badge bg-light text-dark">{{ mode|upper }}</span>
             </div>
             <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-4 mb-3">
+                <!-- KPI Cards -->
+                <div class="row text-center mb-4">
+                    <div class="col-md-3 mb-3">
                         <div class="card h-100 bg-light">
                             <div class="card-body">
                                 <h6 class="text-secondary">Total Return</h6>
@@ -72,17 +108,26 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-3 mb-3">
                         <div class="card h-100 bg-light">
                             <div class="card-body">
                                 <h6 class="text-secondary">Final Equity</h6>
-                                <h3>${{ "{:,.2f}".format(summary.final_equity) }}</h3>
-                                <small class="text-muted">Invested: ${{ "{:,.0f}".format(summary.total_invested or
-                                    summary.initial_capital) }}</small>
+                                <h3>${{ "{:,.0f}".format(summary.final_equity) }}</h3>
+                                <small class="text-muted">Invested: ${{ "{:,.0f}".format(summary.total_invested)
+                                    }}</small>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-3 mb-3">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body">
+                                <h6 class="text-secondary">Dividend Income</h6>
+                                <h3 class="text-primary">${{ "{:,.0f}".format(summary.dividend_income) }}</h3>
+                                <small class="text-muted">Count: {{ summary.total_dividends }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
                         <div class="card h-100 bg-light">
                             <div class="card-body">
                                 <h6 class="text-secondary">Max Drawdown (MDD)</h6>
@@ -91,9 +136,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="text-end text-muted small">
-                    Total Trades: {{ summary.total_trades }}
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-secondary">
+                            <strong>Summary Details:</strong><br>
+                            Total Trades: {{ summary.total_trades }} <br>
+                            Capital Gains: ${{ "{:,.0f}".format(summary.capital_gains) }} <br>
+                            Dividend Income: ${{ "{:,.0f}".format(summary.dividend_income) }} (Taxed)
+                        </div>
+                    </div>
                 </div>
+
             </div>
         </div>
     </div>

@@ -56,7 +56,14 @@ async def backtest_page(request: Request):
     return templates.TemplateResponse("backtest.html", {"request": request})
 
 @router.post("/backtest/run", response_class=HTMLResponse)
-async def run_backtest(request: Request, symbol: str = Form(...), strategy_name: str = Form(...)):
+async def run_backtest(
+    request: Request, 
+    symbol: str = Form(...), 
+    mode: str = Form(...), 
+    strategy_name: str = Form(None),
+    initial_capital: float = Form(10000), 
+    monthly_deposit: float = Form(0)
+):
     # 1. Check Data Availability
     # If not enough data, try to collect
     df = db.get_daily_price_optimized(symbol)
@@ -89,37 +96,47 @@ async def run_backtest(request: Request, symbol: str = Form(...), strategy_name:
                 "symbol": symbol
             })
 
-    # 2. Select Strategy
-    if strategy_name == "volatility_breakout":
-        strategy = VolatilityBreakoutStrategy(k=0.5)
-    elif strategy_name == "ma_crossover":
-        # short=5, long=20, regime=60 (bull market filter)
-        strategy = MovingAverageCrossoverStrategy(short_window=5, long_window=20, regime_window=60)
-    elif strategy_name == "buy_and_hold":
+    # 2. Select Strategy based on Mode
+    strategy = None
+    
+    if mode == "lump":
         strategy = BuyAndHoldStrategy()
-    else:
-        # Default
-        strategy = VolatilityBreakoutStrategy(k=0.5)
+        monthly_deposit = 0 # Force 0 for lump sum
+    elif mode == "dca":
+        # Default to Basic DCA for now, or could allow sub-selection
+        strategy = BasicDCAStrategy()
+    elif mode == "algo":
+        if strategy_name == "volatility_breakout":
+            strategy = VolatilityBreakoutStrategy(k=0.5)
+        elif strategy_name == "ma_crossover":
+            strategy = MovingAverageCrossoverStrategy(short_window=5, long_window=20, regime_window=60)
+        else:
+            strategy = VolatilityBreakoutStrategy(k=0.5)
+        monthly_deposit = 0 # Force 0 for pure algo
+            
+    if strategy is None:
+         strategy = BuyAndHoldStrategy() # Fallback
 
     # 3. Run Backtest
     # Korea: Comm ~0.014%, Tax 0.2%
     # US: Comm ~0.25% (vary), Tax 0% (Transaction tax is 0, Capital gains is separate)
-    if symbol.isdigit():
+    if symbol.isdigit(): # Korean Stock
         commission_rate = 0.000140527
         tax_rate = 0.002
-    else: # US
+    else: # US Stock
         commission_rate = 0.0025
         tax_rate = 0.0
         
     backtester = Backtester(db, strategy, commission_rate=commission_rate, tax_rate=tax_rate)
     
-    summary = backtester.run(symbol, initial_capital=10_000_000)
+    summary = backtester.run(symbol, initial_capital=initial_capital, monthly_deposit=monthly_deposit)
     
     if not summary:
          return templates.TemplateResponse("backtest.html", {
             "request": request, 
             "error": "Backtest finished with no results (Insufficient history for strategy?)", 
             "symbol": symbol,
+            "mode": mode,
             "selected_strategy": strategy_name
         })
     
@@ -127,6 +144,7 @@ async def run_backtest(request: Request, symbol: str = Form(...), strategy_name:
         "request": request, 
         "summary": summary, 
         "symbol": symbol,
+        "mode": mode,
         "selected_strategy": strategy_name
     })
 
