@@ -4,120 +4,187 @@ import numpy as np
 
 class DremanScreener:
     """
-    Implements David Dreman's Contrarian Investing Strategy.
-    Key Metrics:
-    - Low P/E (Price-to-Earnings): Bottom 20% of market or specific threshold (e.g. < 15)
-    - Low P/B (Price-to-Book)
-    - High Dividend Yield
-    - Strong Financials (Current Ratio > 2.0, Low Debt - simplified here)
+    Implements David Dreman's Contrarian Investing Strategy (Refined).
+    
+    Step 1: Universe Selection
+    - Top 500-1000 Market Cap (Stable, Information Rich)
+    - Exclude: Financials, ETFs, REITs (Sector based)
+
+    Step 2: Safety Filters
+    - Debt/Equity < 150% (Stability)
+    - Current Ratio > 1.0 (Liquidity)
+    - Positive Earnings (Profitability)
+
+    Step 3: Ranking (Composite Score)
+    - Rank by PER, PBR, PCR (Price/CashFlow), PDR (Price/Dividend)
+    - Low Score (Sum of Ranks) is better.
     """
     
     def get_universe(self):
         """
         Returns a list of symbols to screen.
-        Due to API limits, we'll start with a representative list (e.g. Dow 30 or S&P 100 subset).
-        In a real scenario, this would come from the DB (Stock Master).
+        Expanded list for demo, excluding obvious Financials/ETFs manually for now,
+        but the screener will also strictly filter by Sector.
         """
-        # Hardcoded subset of large caps for demo purposes to avoid hitting API limits immediately
-        # Combining Tech, Finance, Energy, Consumer, Healthcare
+        # Mixed list including some that should be filtered out to test the logic
         return [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", # Tech
-            "JPM", "BAC", "WFC", "C", "GS", "MS", # Finance
-            "XOM", "CVX", "COP", "SLB", # Energy
-            "JNJ", "PFE", "UNH", "LLY", "ABBV", # Healthcare
-            "PG", "KO", "PEP", "COST", "WMT", # Consumer Staples
-            "HD", "MCD", "NKE", "SBUX", # Consumer Discretionary
-            "INTC", "CSCO", "IBM", "VZ", "T", # Value Tech/Telco
-            "F", "GM", "BA", "CAT", "MMM" # Industrial
+            # Tech (Likely Low Yield, High PE)
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "AMD", "CRM", "ADBE",
+            # Semi / Hardware (Value-ish?)
+            "INTC", "CSCO", "IBM", "QCOM", "TXN", "AVGO", "MU",
+            # Healthcare (Defensive, Value)
+            "JNJ", "PFE", "UNH", "LLY", "ABBV", "MRK", "BMY", "AMGN", "CVS",
+            # Consumer (Stable)
+            "PG", "KO", "PEP", "COST", "WMT", "TGT", "MCD", "NKE", "SBUX", "HD", "LOW",
+            # Energy (Low PE, High Yield, Cyclical)
+            "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX",
+            # Auto / Industrial (Cyclical)
+            "F", "GM", "BA", "CAT", "MMM", "GE", "HON", "DE",
+            # Telecom (High Yield)
+            "VZ", "T", "TMUS", "CMCSA",
+            # Financials (Should be FILTERED OUT)
+            "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "AXP", "V", "MA" 
         ]
 
     def fetch_fundamentals(self, symbols):
-        """
-        Fetches fundamental data for the given symbols using yfinance.
-        """
         print(f"Fetching fundamentals for {len(symbols)} symbols...")
         data = []
-        
-        # Batching might be needed if list is huge, but for < 50 items linear is okay-ish (slow but works)
-        # yfinance Tickers object allows batch access?
-        # Let's try Tickers for batching if possible, but info attribute is per ticker.
-        # We'll loop.
         
         for symbol in symbols:
             try:
                 t = yf.Ticker(symbol)
                 info = t.info
                 
-                # Extract Metrics
-                pe = info.get('trailingPE')
-                forward_pe = info.get('forwardPE')
-                pb = info.get('priceToBook')
-                div_yield = info.get('dividendYield') # 0.05 = 5%
-                mkt_cap = info.get('marketCap')
-                current_ratio = info.get('currentRatio')
-                payout_ratio = info.get('payoutRatio')
+                # Basic Info
+                sector = info.get('sector', 'Unknown')
+                quote_type = info.get('quoteType', 'EQUITY') # EQUITY, ETF, MUTUALFUND
                 
-                # Check valid PE (Dreman focuses on positive earnings)
-                if pe is not None and pe > 0:
-                    data.append({
-                        'symbol': symbol,
-                        'name': info.get('shortName', symbol),
-                        'sector': info.get('sector', 'Unknown'),
-                        'price': info.get('currentPrice'),
-                        'pe': pe,
-                        'forward_pe': forward_pe,
-                        'pb': pb,
-                        'dividend_yield': div_yield if div_yield else 0.0,
-                        'market_cap': mkt_cap,
-                        'current_ratio': current_ratio
-                    })
+                # Metrics
+                price = info.get('currentPrice')
+                mkt_cap = info.get('marketCap')
+                
+                # 1. Earnings (PER)
+                pe = info.get('trailingPE')
+                
+                # 2. Book Value (PBR)
+                pb = info.get('priceToBook')
+                
+                # 3. Cash Flow (PCR)
+                # OCF per share is not always directly there, calculate: Price / (OCF / Shares)
+                # Or use marketCap / totalCashFromOperatingActivities
+                ocf = info.get('operatingCashflow')
+                pcr = None
+                if ocf and mkt_cap:
+                    pcr = mkt_cap / ocf
+                    
+                # 4. Dividend (PDR = 1 / Yield)
+                div_yield = info.get('dividendYield') # e.g. 0.05
+                pdr = None
+                if div_yield and div_yield > 0:
+                    pdr = 1 / div_yield
+                else:
+                    pdr = 9999 # Penalty for no dividend
+                    
+                # Safety
+                debt_to_equity = info.get('debtToEquity') # yfinance returns %, e.g. 154.2
+                current_ratio = info.get('currentRatio')
+                
+                data.append({
+                    'symbol': symbol,
+                    'name': info.get('shortName', symbol),
+                    'sector': sector,
+                    'quote_type': quote_type,
+                    'price': price,
+                    'pe': pe,
+                    'pb': pb,
+                    'pcr': pcr,
+                    'pdr': pdr, # Lower PDR = Higher Yield
+                    'dividend_yield': div_yield,
+                    'debt_to_equity': debt_to_equity,
+                    'current_ratio': current_ratio
+                })
             except Exception as e:
                 print(f"Error fetching {symbol}: {e}")
                 
         return pd.DataFrame(data)
 
-    def screen(self, top_n=10):
-        """
-        Applies Dreman's filters and returns top candidates.
-        Ranking Logic:
-        1. Filter P/E < 20 (Generic low P/E threshold approx bottom 20-30% of current market)
-        2. Filter Market Cap > Large Cap (Stability)
-        3. Rank by Dividend Yield (High) + P/E (Low) combined score?
-        
-        Dreman's primary rule: Buy the bottom 20% P/E stocks.
-        """
+    def screen(self):
         symbols = self.get_universe()
         df = self.fetch_fundamentals(symbols)
         
         if df.empty:
             return []
             
-        # 1. Filter: P/E < 20 (and > 0)
-        # Note: Current market P/E might be high, so 20 is a reasonable "Value" cutoff.
-        df_filtered = df[df['pe'] < 25].copy() # Slightly relaxed to 25 for tech-heavy market
+        # --- Step 1: Universe & Sector Filters ---
+        # Exclude Financial Services, ETFs
+        # Note: yfinance sector 'Financial Services' covers banks.
+        mask_sector = (df['sector'] != 'Financial Services') & (df['sector'] != 'Real Estate')
+        mask_type = (df['quote_type'] == 'EQUITY')
         
-        # 2. Filter: Strong Financials (Current Ratio > 1.5 if available, else ignore)
-        # df_filtered = df_filtered[df_filtered['current_ratio'] > 1.0]
+        df_filtered = df[mask_sector & mask_type].copy()
         
-        # 3. Score & Rank
-        # Lower P/E is better -> Score component 1
-        # Higher Yield is better -> Score component 2
+        # --- Step 2: Safety Filters ---
+        # Debt/Equity < 150 (Note: yfinance uses %, so 150)
+        # Current Ratio > 1.0
+        # Positive PE
         
-        # Simple Ranking: Sort by P/E ascending
-        df_filtered = df_filtered.sort_values(by='pe', ascending=True)
+        # Handle N/As before filtering (fill with bad values or drop)
+        # For Debt, if None, assumed okay? Or drop. Let's drop stricter.
+        df_filtered = df_filtered.dropna(subset=['pe', 'debt_to_equity', 'current_ratio'])
         
-        # Format for display
+        mask_safety = (
+            (df_filtered['debt_to_equity'] < 150) & 
+            (df_filtered['current_ratio'] > 1.0) & 
+            (df_filtered['pe'] > 0)
+        )
+        df_filtered = df_filtered[mask_safety].copy()
+        
+        if df_filtered.empty:
+            return []
+
+        # --- Step 3: Composite Ranking ---
+        # We need PER, PBR, PCR, PDR.
+        # If any is NaN/None, we can't rank properly.
+        # Fill PCR with High Value if missing (assume bad cash flow)
+        df_filtered['pcr'] = df_filtered['pcr'].fillna(9999)
+        # PDR already handled (9999 if no yield)
+        
+        # Rank Each (Ascending: Low is better)
+        df_filtered['rank_pe'] = df_filtered['pe'].rank(ascending=True)
+        df_filtered['rank_pb'] = df_filtered['pb'].rank(ascending=True)
+        df_filtered['rank_pcr'] = df_filtered['pcr'].rank(ascending=True)
+        df_filtered['rank_pdr'] = df_filtered['pdr'].rank(ascending=True)
+        
+        # Sum Ranks
+        df_filtered['composite_score'] = (
+            df_filtered['rank_pe'] + 
+            df_filtered['rank_pb'] + 
+            df_filtered['rank_pcr'] + 
+            df_filtered['rank_pdr']
+        )
+        
+        # Sort by Score
+        df_filtered = df_filtered.sort_values(by='composite_score', ascending=True)
+        
+        # Format for Display
         results = []
-        for _, row in df_filtered.iterrows():
+        for i, row in df_filtered.iterrows():
+             yield_str =  f"{row['dividend_yield']*100:.2f}%" if row['dividend_yield'] else "0%"
+             
              results.append({
+                 'rank': int(row['composite_score']), # Just using score as rank indicator
                  'symbol': row['symbol'],
                  'name': row['name'],
                  'sector': row['sector'],
                  'price': row['price'],
                  'pe': round(row['pe'], 2),
-                 'pb': round(row['pb'], 2) if row['pb'] else "N/A",
-                 'dividend_yield': f"{row['dividend_yield']*100:.2f}%",
-                 'score_text': "Low P/E" # Simple tag
+                 'pb': round(row['pb'], 2) if row['pb'] else "-",
+                 'pcr': round(row['pcr'], 2) if row['pcr'] < 1000 else ">1000",
+                 'dividend_yield': yield_str,
+                 'debt_to_equity': f"{row['debt_to_equity']:.0f}%",
+                 'current_ratio': round(row['current_ratio'], 2),
+                 'score_text': f"Score: {int(row['composite_score'])}"
              })
              
-        return results
+        # Return Top 20-30
+        return results[:30]
