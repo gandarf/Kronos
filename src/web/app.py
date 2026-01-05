@@ -163,7 +163,7 @@ async def check_master_data():
         
         if count < 5000:
             print(f"Stock Master DB has {count} records. Downloading Full Master Data (KRX+US)...")
-            loader = KrxLoader()
+            loader = MarketLoader()
             df = loader.download_and_parse()
             if not df.empty:
                 db.save_stock_master(df)
@@ -182,4 +182,15 @@ async def search_page(request: Request, q: str = ""):
         results = db.search_stock(q)
         
     return templates.TemplateResponse("search.html", {"request": request, "results": results, "query": q})
+
+@router.get("/analysis/screener", response_class=HTMLResponse)
+async def screener_page(request: Request):
+    return templates.TemplateResponse("screener.html", {"request": request, "results": []})
+
+@router.post("/analysis/screener/run", response_class=HTMLResponse)
+async def run_screener(request: Request):
+    from src.analysis.screener import DremanScreener
+    screener = DremanScreener()
+    results = screener.screen()
+    return templates.TemplateResponse("screener.html", {"request": request, "results": results, "ran": True})
 

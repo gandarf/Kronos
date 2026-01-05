@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">David Dreman's Contrarian Screener</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    This screener follows David Dreman's contrarian investing strategy, focusing on stocks with:
+                <ul>
+                    <li><strong>Low P/E Ratio</strong> (Bottom 20% of market)</li>
+                    <li><strong>High Dividend Yield</strong></li>
+                    <li><strong>Strong Fundamentals</strong> (Large Cap, Low P/B)</li>
+                </ul>
+                </p>
+                <form action="/web/analysis/screener/run" method="post">
+                    <div class="row align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">Universe</label>
+                            <select class="form-select" disabled>
+                                <option selected>US Large Cap (Demo Subset)</option>
+                                <option>S&P 500 (Full - Slow)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">Run Screener</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if ran %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Screening Results ({{ results|length }} candidates found)
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Name</th>
+                                <th>Sector</th>
+                                <th>Price</th>
+                                <th>P/E</th>
+                                <th>P/B</th>
+                                <th>Div Yield</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in results %}
+                            <tr>
+                                <td><strong>{{ row.symbol }}</strong></td>
+                                <td>{{ row.name }}</td>
+                                <td><span class="badge bg-secondary">{{ row.sector }}</span></td>
+                                <td>${{ row.price }}</td>
+                                <td class="text-success fw-bold">{{ row.pe }}</td>
+                                <td>{{ row.pb }}</td>
+                                <td>{{ row.dividend_yield }}</td>
+                                <td>{{ row.score_text }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">No stocks matched the criteria.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
