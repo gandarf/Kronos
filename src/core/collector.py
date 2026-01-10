@@ -21,11 +21,13 @@ class MarketDataCollector:
                 ticker = yf.Ticker(symbol)
                 # period="1y", "2y", "max" etc
                 period = f"{years}y"
-                hist = ticker.history(period=period)
+                # auto_adjust=False to get raw Close (not adjusted for dividends), 
+                # so we can simulate dividends separately in backtester.
+                hist = ticker.history(period=period, auto_adjust=False)
             else:
                  # Default logic or max?
                  ticker = yf.Ticker(symbol)
-                 hist = ticker.history(period="1y")
+                 hist = ticker.history(period="1y", auto_adjust=False)
 
             if hist.empty:
                 print(f"[{symbol}] No data found on yfinance.")

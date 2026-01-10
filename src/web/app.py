@@ -188,9 +188,23 @@ async def screener_page(request: Request):
     return templates.TemplateResponse("screener.html", {"request": request, "results": []})
 
 @router.post("/analysis/screener/run", response_class=HTMLResponse)
-async def run_screener(request: Request):
-    from src.analysis.screener import DremanScreener
-    screener = DremanScreener()
-    results = screener.screen()
-    return templates.TemplateResponse("screener.html", {"request": request, "results": results, "ran": True})
+async def run_screener(request: Request, strategy_type: str = Form(...), universe: str = Form('large_cap')): 
+    from src.analysis.screener import DremanScreener, MagicFormulaScreener
+    
+    results = []
+    
+    if strategy_type == 'magic':
+        screener = MagicFormulaScreener()
+        results = screener.screen(universe_type=universe)
+    else:
+        screener = DremanScreener()
+        results = screener.screen(universe_type=universe)
+        
+    return templates.TemplateResponse("screener.html", {
+        "request": request, 
+        "results": results, 
+        "ran": True, 
+        "selected_strategy": strategy_type,
+        "selected_universe": universe
+    })
 

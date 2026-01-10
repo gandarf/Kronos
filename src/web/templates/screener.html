@@ -5,74 +5,93 @@
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header bg-success text-white">
-                <h5 class="mb-0">David Dreman's Contrarian Screener (Refined V2)</h5>
+                <h5 class="mb-0">Kronos Intelligent Screener</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">
-                    Analyzes Major Stocks (non-Financial) using a multi-factor composite ranking:
-                </p>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>🛑 Filter Criteria (Safety)</h6>
-                        <ul class="small">
-                            <li>Exclude Financials & ETFs</li>
-                            <li>Debt/Equity < 150%</li>
-                            <li>Current Ratio > 1.0</li>
-                            <li>Profitable (P/E > 0)</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>🏆 Ranking Criteria (Composite Score)</h6>
-                        <ul class="small">
-                            <li>Sum of Ranks of 4 Metrics (Low is Better)</li>
-                            <li><strong>PER</strong> (Price / Earnings)</li>
-                            <li><strong>PBR</strong> (Price / Book)</li>
-                            <li><strong>PCR</strong> (Price / Cash Flow)</li>
-                            <li><strong>PDR</strong> (Price / Dividend)</li>
-                        </ul>
-                    </div>
-                </div>
-                <hr>
                 <form action="/web/analysis/screener/run" method="post">
-                    <div class="row align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label">Universe</label>
-                            <select class="form-select" disabled>
-                                <option selected>Strategy 50 (Selected Large Caps)</option>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Strategy</label>
+                            <select class="form-select" name="strategy_type" id="strategy_type" onchange="updateDesc()">
+                                <option value="dreman" {% if selected_strategy=='dreman' %}selected{% endif %}>David
+                                    Dreman (Contrarian)</option>
+                                <option value="magic" {% if selected_strategy=='magic' %}selected{% endif %}>Joel
+                                    Greenblatt (Magic Formula)</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-primary w-100">Run Screening V2</button>
+                        <div class="col-md-4">
+                            <label class="form-label">Universe</label>
+                            <select class="form-select" name="universe">
+                                <option value="large_cap" {% if selected_universe=='large_cap' %}selected{% endif %}>
+                                    Large Cap (Top 200)</option>
+                                <option value="mid_cap" {% if selected_universe=='mid_cap' %}selected{% endif %}>Mid Cap
+                                    (Rank 250-750)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Run Screening</button>
                         </div>
                     </div>
                 </form>
+
+                <hr>
+
+                <div id="desc-dreman" class="desc-box" style="display: block;">
+                    <h6 class="text-secondary">David Dreman Logic (Contrarian)</h6>
+                    <small class="text-muted">Rank by Value (PER, PBR, PCR, Yield) + Safety Filters. Excludes
+                        Financials.</small>
+                </div>
+                <div id="desc-magic" class="desc-box" style="display: none;">
+                    <h6 class="text-secondary">Joel Greenblatt Logic (Magic Formula)</h6>
+                    <small class="text-muted">Rank by <strong>Cheapness</strong> (Earnings Yield) +
+                        <strong>Quality</strong> (ROA). Excludes Financials & Utilities.</small>
+                </div>
+
             </div>
         </div>
     </div>
 </div>
 
+<script>
+    function updateDesc() {
+        const val = document.getElementById('strategy_type').value;
+        document.querySelectorAll('.desc-box').forEach(el => el.style.display = 'none');
+        document.getElementById('desc-' + val).style.display = 'block';
+    }
+    // Init status
+    window.onload = updateDesc;
+</script>
+
 {% if ran %}
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                Screening Results ({{ results|length }} candidates found)
+            <div class="card-header d-flex justify-content-between">
+                <span>Results: {{ results|length }} Candidates</span>
+                <span class="badge bg-secondary">{{ selected_strategy|upper }}</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-striped table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Score</th>
+                                <th>Rank</th>
                                 <th>Symbol</th>
                                 <th>Name</th>
                                 <th>Sector</th>
+                                {% if selected_strategy == 'magic' %}
+                                <th class="text-primary">Earn Yield (Cheap)</th>
+                                <th class="text-success">ROA (Quality)</th>
+                                <th>EV/EBITDA</th>
+                                {% else %}
                                 <th>P/E</th>
                                 <th>P/B</th>
                                 <th>PCR</th>
                                 <th>Div Yield</th>
                                 <th>Debt</th>
                                 <th>Liq</th>
+                                {% endif %}
+                                <th>Score</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -82,17 +101,26 @@
                                 <td><strong>{{ row.symbol }}</strong></td>
                                 <td>{{ row.name }}</td>
                                 <td><small class="text-muted">{{ row.sector }}</small></td>
+
+                                {% if selected_strategy == 'magic' %}
+                                <td class="fw-bold text-primary">{{ row.magic_ey }}</td>
+                                <td class="fw-bold text-success">{{ row.magic_roa }}</td>
+                                <td>{{ row.ev_ebitda }}</td>
+                                {% else %}
                                 <td class="fw-bold">{{ row.pe }}</td>
                                 <td>{{ row.pb }}</td>
                                 <td>{{ row.pcr }}</td>
                                 <td class="text-success">{{ row.dividend_yield }}</td>
                                 <td>{{ row.debt_to_equity }}</td>
                                 <td>{{ row.current_ratio }}</td>
+                                {% endif %}
+
+                                <td>{{ row.score_text }}</td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="10" class="text-center py-4 text-muted">No stocks matched the Contrarian V2
-                                    criteria.</td>
+                                <td colspan="10" class="text-center py-4 text-muted">No stocks matched the criteria.
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
