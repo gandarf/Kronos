@@ -24,3 +24,4 @@ test_output.txt
 collector_debug.log
 debug_kis_daily.py
 data/market_data.db~
+*.csv
